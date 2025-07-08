@@ -1,7 +1,7 @@
 from memory.embedder import embed_text
 import numpy as np
 
-test_text = "Reinforcement learning uses rewards and penalties."
+test_text = "The dog sat on the lawn."
 
 try:
     vector = embed_text(test_text)
