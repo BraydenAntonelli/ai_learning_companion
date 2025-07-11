@@ -40,7 +40,7 @@ if question.strip():
         best_fact, dist = results[0]
         if dist <= MAX_DISTANCE:
             st.subheader("🧠 Best Answer")
-            st.markdown(f"**{best_fact}**")
+            st.markdown(f"{best_fact}")
             st.caption(f"(semantic distance: {round(dist, 4)})")
         else:
             st.warning("🤔 I'm not confident enough to answer that. Try teaching me first!")
