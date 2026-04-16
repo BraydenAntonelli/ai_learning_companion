@@ -1,34 +1,53 @@
-from memory.embedder import embed_text
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from support import ensure_repo_root_on_path
+
+ensure_repo_root_on_path()
+
+from llm.responder import DEFAULT_LOW_CONFIDENCE, build_answer_response
 from memory.vector_store import VectorStore
-import numpy as np
+from retriever.semantic_search import search_memory
 
-# Initialize vector store
-store = VectorStore(
-    dim=384,
-    index_path="data/memory.faiss",
-    metadata_path="data/memory.json"
-)
 
-print(" TEACH ME FACTS (type 'done' to stop)\n")
+class TeachAndAskFlowTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        temp_path = Path(self.temp_dir.name)
+        self.store = VectorStore(
+            dim=3,
+            index_path=temp_path / "memory.faiss",
+            metadata_path=temp_path / "memory.json",
+        )
 
-while True:
-    fact = input("→ Fact: ")
-    if fact.strip().lower() == "done":
-        break
-    if fact.strip():
-        store.add(embed_text(fact), fact)
-        print("✓ Stored.\n")
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
 
-print("\n ASK ME A QUESTION")
-while True:
-    query = input("→ Question (or 'exit'): ")
-    if query.strip().lower() == "exit":
-        break
-    if query.strip():
-        query_vec = embed_text(query)
-        results = store.search(query_vec, top_k=3)
+    def test_teach_then_ask_returns_answer_when_distance_is_within_cutoff(self) -> None:
+        self.store.add([0.0, 0.0, 0.0], "My favorite music is rock.")
 
-        print("Top matches:")
-        for match, dist in results:
-            print(f"→ {match} (distance: {round(dist, 4)})")
-        print()
+        with patch("retriever.semantic_search.embed_text", return_value=[0.05, 0.0, 0.0]):
+            results = search_memory("What is my favorite music?", self.store, top_k=1)
+
+        response = build_answer_response(results, max_distance=0.5)
+
+        self.assertTrue(response["found"])
+        self.assertEqual(response["answer"], "My favorite music is rock.")
+
+    def test_low_confidence_match_returns_fallback_response(self) -> None:
+        self.store.add([5.0, 5.0, 5.0], "My favorite music is rock.")
+
+        with patch("retriever.semantic_search.embed_text", return_value=[0.0, 0.0, 0.0]):
+            results = search_memory("What is my favorite music?", self.store, top_k=1)
+
+        response = build_answer_response(results, max_distance=0.5)
+
+        self.assertFalse(response["found"])
+        self.assertEqual(response["answer"], DEFAULT_LOW_CONFIDENCE)
+        self.assertIsNotNone(response["distance"])
+
+
+if __name__ == "__main__":
+    unittest.main()
