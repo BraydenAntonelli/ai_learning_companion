@@ -9,7 +9,7 @@ import streamlit as st
 from feedback.logger import clear_feedback_log, get_feedback_stats, log_feedback
 from llm.responder import build_answer_response, build_teach_response, format_category_label
 from memory.classifier import CATEGORY_OPTIONS, detect_message_intent, strip_teach_prefix
-from memory.embedder import embed_text, embed_texts
+from memory.embedder import embed_text, embed_texts, get_fallback_reason
 from memory.models import MemoryDraft, MemoryRecord
 from memory.vector_store import VectorStore
 from retriever.semantic_search import search_memory
@@ -548,6 +548,11 @@ with st.sidebar:
         st.caption("Memory categories")
         for category, count in category_counts.most_common():
             st.caption(f"{format_category_label(category)}: {count}")
+
+    fallback_reason = get_fallback_reason()
+    if fallback_reason:
+        st.header("Embedding Status")
+        st.warning(fallback_reason)
 
     st.header("Controls")
     if st.button("Clear Memory", type="secondary", use_container_width=True):
