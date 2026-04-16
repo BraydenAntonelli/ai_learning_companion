@@ -1,88 +1,56 @@
 # AI Learning Companion
 
-AI Learning Companion is a local Streamlit app that demonstrates the core mechanics of memory-based AI retrieval. The user teaches the system short facts in plain language, the app converts those facts into embeddings, stores them persistently, and later retrieves the closest match when the user asks a related question.
+AI Learning Companion is a local Streamlit app for building and querying semantic memory. You can teach it facts directly in chat, upload notes or PDFs for ingestion, browse and edit stored memories, and review what it knows through a lightweight study mode.
 
-This project is intentionally positioned as a strong GitHub MVP:
+The project demonstrates a fuller AI application pipeline than the original MVP:
 
-- easy to understand quickly
-- realistic enough to show an end-to-end AI workflow
-- local-first, so it runs without a paid API key
-- modular enough to extend into richer retrieval systems later
+- structured memory records instead of raw strings
+- normalized embeddings with cosine-similarity retrieval
+- confidence-aware answer selection
+- source-grounded responses with metadata
+- document upload and chunk ingestion
+- chat-style teach-or-ask interaction
+- memory browsing, editing, and deletion
+- review cards generated from stored knowledge
 
-## MVP
+## What The App Does
 
-The MVP goals for this project are:
+1. Accepts natural-language input in a unified chat interface.
+   Statements are stored as memory and questions are treated as retrieval queries.
+2. Classifies stored memories automatically.
+   New memories are labeled as personal context, academic concepts, factual statements, temporary notes, question-like inputs, or document excerpts.
+3. Converts memories into local embeddings.
+   The app uses `sentence-transformers` locally, so no paid API key is required.
+4. Stores memory persistently in FAISS plus structured JSON metadata.
+   Each record keeps text, category, source, tags, and timestamps.
+5. Uses cosine similarity for semantic retrieval.
+   Query and memory embeddings are normalized before search.
+6. Rejects weak or ambiguous matches.
+   The app uses both a minimum similarity threshold and a top-match gap threshold.
+7. Ingests uploaded documents.
+   Text, markdown, and PDF files can be chunked and added into memory.
+8. Supports lightweight study review.
+   Stored memories can be surfaced as simple flashcard-style prompts.
 
-1. Teach the system information through user input.
-   Users can type in facts, preferences, definitions, or notes and store them as memory.
-2. Convert user input into embeddings.
-   Each fact is transformed into a semantic vector using a local embedding model so the app compares meaning instead of exact wording.
-3. Store memory persistently.
-   Embeddings are stored in FAISS, while the original fact text is stored as metadata.
-4. Let the user ask natural-language questions.
-   Questions can be phrased differently from the original stored fact.
-5. Use semantic search to find the closest answer.
-   The app embeds the question, compares it against stored memory, and retrieves the best-matching fact.
-6. Return a single best answer.
-   The app behaves like a simple question-answering assistant rather than showing a long ranked list.
-7. Reject weak matches.
-   If the best match is too far away semantically, the app returns a fallback response instead of guessing.
-8. Provide an interactive Streamlit interface.
-   The UI includes a teaching section, a question section, and a displayed answer or fallback response.
-9. Preserve memory between runs.
-   Facts remain available in later sessions unless the user clears memory.
-10. Include basic feedback logging.
-    The app logs whether a response was helpful or not for later inspection.
+## Main Features
 
-## What The MVP Demonstrates
+- chat-style memory teaching and question answering
+- automatic memory classification
+- structured memory metadata with timestamps, source labels, and tags
+- cosine-similarity retrieval with configurable thresholds
+- document upload for `.txt`, `.md`, and `.pdf`
+- memory browser with filters, editing, and deletion
+- feedback logging for retrieval quality
+- study review cards generated from saved memories
 
-This project is meant to show working knowledge of:
+## Example Workflow
 
-- embeddings
-- semantic similarity
-- vector databases
-- retrieval systems
-- confidence thresholds
-- interactive AI application design
-
-That makes it a strong learning project and a solid portfolio project.
-
-## Example Flow
-
-Teach the app:
-
-```text
-My favorite music is rock.
-The Battle of Hastings occurred in 1066.
-Photosynthesis converts sunlight into energy.
-```
-
-Ask the app:
-
-```text
-What is my favorite music?
-What happened in 1066?
-How do plants turn sunlight into energy?
-```
-
-The app embeds the question, searches memory semantically, and returns the closest stored fact if the match is confident enough.
-
-## Current Features
-
-- Streamlit UI for teaching and asking
-- local embeddings with `sentence-transformers`
-- FAISS-backed persistent memory
-- duplicate-prevention for repeated facts
-- configurable confidence cutoff
-- configurable ambiguity buffer based on the gap between the top two matches
-- fallback response for weak matches
-- ambiguity rejection when multiple memories are too close together
-- source-grounded answer display with the originating memory
-- heuristic confidence score and confidence tier display
-- persistent feedback logging
-- stored-facts viewer
-- edit and delete controls for stored memory
-- clear-memory and clear-feedback controls
+1. Chat: `Remember that my favorite music is rock.`
+2. Chat: `What is my favorite music?`
+3. The app retrieves the strongest memory match and decides whether it is confident enough to answer.
+4. Upload a study document and let the app chunk it into memory.
+5. Open the Memory tab to inspect records by category or source.
+6. Open the Review tab to test yourself on stored memories.
 
 ## Tech Stack
 
@@ -90,6 +58,7 @@ The app embeds the question, searches memory semantically, and returns the close
 - `sentence-transformers`
 - `faiss-cpu`
 - `numpy`
+- `pypdf`
 
 ## Project Structure
 
@@ -104,23 +73,30 @@ ai_learning_companion/
 |   `-- responder.py
 |-- memory/
 |   |-- __init__.py
+|   |-- classifier.py
 |   |-- embedder.py
+|   |-- models.py
 |   `-- vector_store.py
 |-- retriever/
 |   |-- __init__.py
 |   `-- semantic_search.py
 |-- test/
 |   |-- support.py
+|   |-- test_classifier.py
+|   |-- test_document_utils.py
 |   |-- test_embed.py
 |   |-- test_feedback_logger.py
 |   |-- test_responder.py
 |   |-- test_semantic_search.py
+|   |-- test_study_utils.py
 |   |-- test_teach_and_ask.py
 |   |-- test_vector_store.py
 |   `-- test_vector_store_2.py
 |-- utils/
 |   |-- __init__.py
+|   |-- document_utils.py
 |   |-- paths.py
+|   |-- study_utils.py
 |   `-- text_utils.py
 |-- data/
 |   `-- memory.json
@@ -154,14 +130,12 @@ pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
-Once the app opens:
+### Tabs In The App
 
-1. Teach the system a fact in the left column.
-2. Ask a question in the right column.
-3. Adjust the confidence cutoff and ambiguity buffer in the sidebar if needed.
-4. Review the answer, source memory, and confidence details.
-5. Leave feedback on whether the answer was helpful.
-6. Edit or delete stored facts from the memory-management section.
+- `Chat`: teach or ask with one unified input
+- `Upload`: ingest text, markdown, or PDF documents
+- `Memory`: browse, filter, edit, and delete records
+- `Review`: generate simple study cards from stored memories
 
 ## Run The Tests
 
@@ -169,75 +143,43 @@ Once the app opens:
 python -m unittest discover -s test
 ```
 
-The automated tests cover:
+The test suite covers:
 
-- embedding input handling
-- vector-store add and search behavior
-- vector-store edit and delete behavior
-- persistence and recovery behavior
+- embedding normalization behavior
+- memory classification
+- structured vector-store persistence and migration
 - semantic search flow
-- teach-and-ask response logic
+- answer-response logic
 - feedback logging
-- answer-response formatting and ambiguity handling
+- document-ingestion planning
+- flashcard generation
 
-## Data Files
+## Data Model
 
-- `data/memory.json` stores the original fact text
-- `data/memory.faiss` stores the vector index
-- `data/feedback_log.jsonl` stores answer feedback plus source and confidence metadata
+Each memory record stores:
 
-The first real embedding request downloads the local transformer model, so the first run will be slower than later runs.
+- text
+- category
+- source
+- tags
+- created timestamp
+- updated timestamp
 
-## Why This Works Well On GitHub
+Embeddings live in `data/memory.faiss`, while structured metadata lives in `data/memory.json`.
 
-- It shows real AI application mechanics without hiding everything inside a notebook.
-- It demonstrates modular thinking: UI, retrieval, storage, and feedback are separated cleanly.
-- It is easy for other people to clone, run, inspect, and extend.
-- It stays honest about scope: this is a retrieval MVP, not an overclaimed general assistant.
+## Optimization Highlights
 
-## Implemented Beyond The MVP
-
-These stretch-goal style upgrades are already included:
-
-- confidence-aware answer selection using both top-match distance and the gap to the second-best result
-- source-grounded answers that show which stored memory the response came from
-- heuristic confidence scoring to make retrieval behavior easier to inspect
-- memory-management tools for editing and deleting stored facts
-
-## Next Stretch Goals
-
-These are the strongest next-step improvements if you want the project to look more advanced later.
-
-1. Retrieval-augmented generation.
-   Retrieve the best memory, then pass it into an LLM to generate a more polished answer.
-2. Structured memory entries.
-   Store richer metadata such as category, timestamp, source, confidence, and tags.
-3. Memory type classification.
-   Classify whether an input is a preference, factual statement, concept, note, or mistaken question.
-4. Cosine-similarity retrieval.
-   Normalize embeddings and switch from raw L2 distance to cosine similarity for easier scoring and debugging.
-5. SQLite-backed metadata storage.
-   Keep FAISS for vectors but move metadata to SQLite for more scalable updates and queries.
-6. Intent-aware chat mode.
-   Replace the separate Teach and Ask sections with a unified chat interface.
-7. Document upload.
-   Support PDFs, notes, or other files by extracting, chunking, embedding, and storing their text.
-8. Web search fallback.
-   If memory retrieval fails, optionally retrieve information from the web as a secondary source.
-9. Quiz mode.
-   Generate questions from stored facts to test the user.
-10. Flashcard generation.
-    Convert stored knowledge into study cards automatically.
-11. Daily review or spaced repetition.
-    Surface facts again over time for reinforcement.
-12. Evaluation pipeline.
-    Add retrieval accuracy, top-1 accuracy, rejection quality, and threshold-tuning metrics.
+- batch embedding support for document ingestion and index rebuilds
+- lazy model loading to avoid expensive imports before first use
+- normalized vector handling for stable cosine similarity
+- metadata migration from older raw-string memory files
+- word-aware chunking for uploaded documents
 
 ## Troubleshooting
 
 - If `streamlit` is not recognized, run the app with `python -m streamlit run app.py`.
-- If retrieval feels too strict, increase the cutoff slightly in the sidebar.
-- If you change the retrieval setup and want a clean slate, clear memory from the UI.
+- If PDF uploads fail, make sure `pypdf` is installed from `requirements.txt`.
+- If retrieval is too strict, lower the minimum similarity or top-match gap in the sidebar.
 - If `python` on Windows points to the Microsoft Store shim, activate a real virtual environment first and use that interpreter.
 
 ## License
