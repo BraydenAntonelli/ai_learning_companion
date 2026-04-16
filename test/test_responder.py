@@ -9,6 +9,7 @@ from llm.responder import (
     DEFAULT_LOW_CONFIDENCE,
     DEFAULT_NO_ANSWER,
     build_answer_response,
+    build_grounded_fallback_answer,
 )
 from memory.models import MemoryRecord, RetrievedMemory
 
@@ -70,6 +71,28 @@ class BuildAnswerResponseTests(unittest.TestCase):
         self.assertEqual(response["rejection_reason"], "ambiguous")
         self.assertEqual(response["alternate_source_record"].text, "My favorite music is jazz.")
         self.assertLess(response["confidence_score"], 40)
+
+    def test_builds_natural_personal_answer_for_favorite_pattern(self) -> None:
+        record = MemoryRecord.create(
+            text="Pizza is my favorite food.",
+            category="personal_context",
+            source="manual",
+        )
+
+        answer = build_grounded_fallback_answer("What is my favorite food?", record)
+
+        self.assertEqual(answer, "Your favorite food is Pizza.")
+
+    def test_builds_natural_personal_answer_for_my_pattern(self) -> None:
+        record = MemoryRecord.create(
+            text="My favorite music is rock.",
+            category="personal_context",
+            source="manual",
+        )
+
+        answer = build_grounded_fallback_answer("What is my favorite music?", record)
+
+        self.assertEqual(answer, "Your favorite music is rock.")
 
 
 if __name__ == "__main__":

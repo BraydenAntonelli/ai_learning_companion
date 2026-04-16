@@ -19,7 +19,7 @@ class TeachAndAskFlowTests(unittest.TestCase):
         self.store = VectorStore(
             dim=3,
             index_path=temp_path / "memory.faiss",
-            metadata_path=temp_path / "memory.json",
+            metadata_path=temp_path / "memory.sqlite3",
         )
 
     def tearDown(self) -> None:
@@ -28,7 +28,14 @@ class TeachAndAskFlowTests(unittest.TestCase):
     def test_teach_then_ask_returns_answer_when_similarity_is_within_cutoff(self) -> None:
         self.store.add([1.0, 0.0, 0.0], "My favorite music is rock.")
 
-        with patch("retriever.semantic_search.embed_text", return_value=[0.9, 0.1, 0.0]):
+        with patch(
+            "retriever.semantic_search.embed_texts",
+            return_value=[
+                [0.9, 0.1, 0.0],
+                [0.9, 0.1, 0.0],
+                [0.9, 0.1, 0.0],
+            ],
+        ):
             results = search_memory("What is my favorite music?", self.store, top_k=1)
 
         response = build_answer_response(results, min_similarity=0.7)
@@ -39,7 +46,14 @@ class TeachAndAskFlowTests(unittest.TestCase):
     def test_low_similarity_match_returns_fallback_response(self) -> None:
         self.store.add([0.0, 1.0, 0.0], "My favorite music is rock.")
 
-        with patch("retriever.semantic_search.embed_text", return_value=[1.0, 0.0, 0.0]):
+        with patch(
+            "retriever.semantic_search.embed_texts",
+            return_value=[
+                [1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+            ],
+        ):
             results = search_memory("What is my favorite music?", self.store, top_k=1)
 
         response = build_answer_response(results, min_similarity=0.7)

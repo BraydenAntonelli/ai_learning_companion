@@ -1,4 +1,5 @@
-import json
+from contextlib import closing
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,11 +13,11 @@ from feedback.logger import clear_feedback_log, get_feedback_stats, log_feedback
 
 
 class FeedbackLoggerTests(unittest.TestCase):
-    def test_feedback_is_logged_counted_and_cleared(self) -> None:
+    def test_feedback_is_logged_counted_and_cleared_in_sqlite(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            feedback_path = Path(temp_dir) / "feedback_log.jsonl"
+            db_path = Path(temp_dir) / "memory.sqlite3"
 
-            with patch("feedback.logger.FEEDBACK_LOG_PATH", feedback_path):
+            with patch("feedback.logger.FEEDBACK_DB_PATH", db_path):
                 log_feedback(
                     question="What is my favorite music?",
                     answer="My favorite music is rock.",
@@ -45,16 +46,26 @@ class FeedbackLoggerTests(unittest.TestCase):
                     {"total": 2, "up": 1, "down": 1},
                 )
 
-                records = [
-                    json.loads(line)
-                    for line in feedback_path.read_text(encoding="utf-8").splitlines()
-                    if line.strip()
-                ]
-                self.assertEqual(records[0]["score"], 0.92)
-                self.assertEqual(records[1]["rejection_reason"], "low_confidence")
+                with closing(sqlite3.connect(db_path)) as connection:
+                    rows = connection.execute(
+                        """
+                        SELECT question, score, rejection_reason
+                        FROM feedback
+                        ORDER BY id
+                        """
+                    ).fetchall()
+
+                self.assertEqual(rows[0][1], 0.92)
+                self.assertEqual(rows[1][2], "low_confidence")
 
                 clear_feedback_log()
-                self.assertFalse(feedback_path.exists())
+
+                with closing(sqlite3.connect(db_path)) as connection:
+                    count = connection.execute(
+                        "SELECT COUNT(*) FROM feedback"
+                    ).fetchone()[0]
+
+                self.assertEqual(count, 0)
                 self.assertEqual(
                     get_feedback_stats(),
                     {"total": 0, "up": 0, "down": 0},

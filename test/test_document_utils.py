@@ -4,7 +4,7 @@ from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()
 
-from utils.document_utils import build_document_ingestion_plan
+from utils.document_utils import build_document_ingestion_plan, split_document_text
 
 
 class FakeUploadedFile:
@@ -35,6 +35,50 @@ class DocumentUtilsTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             build_document_ingestion_plan(uploaded_file)
+
+    def test_split_document_text_keeps_one_fact_per_line_when_possible(self) -> None:
+        chunks = split_document_text(
+            "Mercury is the closest planet to the Sun.\nVenus is the hottest planet.\nEarth has one moon.",
+            max_chars=120,
+        )
+
+        self.assertEqual(
+            chunks,
+            [
+                "Mercury is the closest planet to the Sun.",
+                "Venus is the hottest planet.",
+                "Earth has one moon.",
+            ],
+        )
+
+    def test_split_document_text_handles_bullets_and_numbered_lists(self) -> None:
+        chunks = split_document_text(
+            "- Rock is a genre of music.\n- Jazz uses improvisation.\n1. Blues influenced rock.",
+            max_chars=120,
+        )
+
+        self.assertEqual(
+            chunks,
+            [
+                "Rock is a genre of music.",
+                "Jazz uses improvisation.",
+                "Blues influenced rock.",
+            ],
+        )
+
+    def test_split_document_text_applies_heading_context(self) -> None:
+        chunks = split_document_text(
+            "# Biology Facts\nCells are the basic unit of life.\nPhotosynthesis happens in chloroplasts.",
+            max_chars=120,
+        )
+
+        self.assertEqual(
+            chunks,
+            [
+                "Biology Facts: Cells are the basic unit of life.",
+                "Biology Facts: Photosynthesis happens in chloroplasts.",
+            ],
+        )
 
 
 if __name__ == "__main__":

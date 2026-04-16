@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
+import sqlite3
 from os import PathLike
 from pathlib import Path
 from typing import Callable, List, Optional, Sequence, Union
@@ -14,6 +16,20 @@ from utils.text_utils import normalize_text
 
 EmbeddingFn = Callable[[str], Sequence[float]]
 EmbeddingBatchFn = Callable[[Sequence[str]], Sequence[Sequence[float]]]
+
+CREATE_MEMORIES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS memories (
+    sort_order INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT NOT NULL UNIQUE,
+    normalized_text TEXT NOT NULL UNIQUE,
+    text TEXT NOT NULL,
+    category TEXT NOT NULL,
+    source TEXT NOT NULL,
+    tags_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+)
+"""
 
 
 class VectorStore:
@@ -43,9 +59,124 @@ class VectorStore:
     def _new_index(self) -> faiss.Index:
         return faiss.IndexFlatIP(self.dim)
 
+    def _can_embed(self) -> bool:
+        return self.embed_batch_fn is not None or self.embed_fn is not None
+
     def _reset_in_memory(self) -> None:
         self.index = self._new_index()
         self._records = []
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(str(self.metadata_path))
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    @contextmanager
+    def _connection(self):
+        connection = self._connect()
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    def _init_metadata_store(self) -> None:
+        with self._connection() as connection:
+            connection.execute(CREATE_MEMORIES_TABLE_SQL)
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category)"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_memories_source ON memories(source)"
+            )
+
+    def _record_to_db_row(
+        self, record: MemoryRecord
+    ) -> tuple[str, str, str, str, str, str, str, str]:
+        return (
+            record.id,
+            record.text.casefold(),
+            record.text,
+            record.category,
+            record.source,
+            json.dumps(list(record.tags), ensure_ascii=False),
+            record.created_at,
+            record.updated_at,
+        )
+
+    def _db_row_to_record(self, row: sqlite3.Row) -> MemoryRecord:
+        try:
+            tags = json.loads(row["tags_json"])
+        except (TypeError, json.JSONDecodeError):
+            tags = []
+
+        return MemoryRecord.from_dict(
+            {
+                "id": row["id"],
+                "text": row["text"],
+                "category": row["category"],
+                "source": row["source"],
+                "tags": tags,
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+        )
+
+    def _load_records_from_db(self) -> List[MemoryRecord]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, text, category, source, tags_json, created_at, updated_at
+                FROM memories
+                ORDER BY sort_order
+                """
+            ).fetchall()
+        return [self._db_row_to_record(row) for row in rows]
+
+    def _insert_records(self, records: Sequence[MemoryRecord]) -> None:
+        if not records:
+            return
+
+        with self._connection() as connection:
+            connection.executemany(
+                """
+                INSERT INTO memories (
+                    id,
+                    normalized_text,
+                    text,
+                    category,
+                    source,
+                    tags_json,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [self._record_to_db_row(record) for record in records],
+            )
+
+    def _replace_all_records_in_db(self, records: Sequence[MemoryRecord]) -> None:
+        with self._connection() as connection:
+            connection.execute("DELETE FROM memories")
+            connection.executemany(
+                """
+                INSERT INTO memories (
+                    id,
+                    normalized_text,
+                    text,
+                    category,
+                    source,
+                    tags_json,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [self._record_to_db_row(record) for record in records],
+            )
 
     def _coerce_vector(self, embedding: Sequence[float]) -> np.ndarray:
         vec = np.array(embedding, dtype="float32").reshape(1, -1)
@@ -138,20 +269,16 @@ class VectorStore:
 
     def _load(self) -> None:
         self._reset_in_memory()
+        self._init_metadata_store()
 
-        metadata_exists = self.metadata_path.exists()
         index_exists = self.index_path.exists()
-
-        if not metadata_exists and not index_exists:
-            return
-
         records = self._load_metadata()
-        if records is None:
-            self._save()
+
+        if not records and not index_exists:
             return
 
         if not index_exists:
-            if records and self.embed_fn is not None:
+            if records and self._can_embed():
                 self._rebuild_index_from_records(records)
             else:
                 self._records = records
@@ -168,7 +295,7 @@ class VectorStore:
         )
 
         if needs_rebuild:
-            if records and self.embed_fn is not None:
+            if records and self._can_embed():
                 self._rebuild_index_from_records(records)
             else:
                 self._records = records
@@ -178,37 +305,8 @@ class VectorStore:
         self.index = index
         self._records = records
 
-    def _load_metadata(self) -> Optional[List[MemoryRecord]]:
-        try:
-            with self.metadata_path.open("r", encoding="utf-8") as file:
-                raw = json.load(file)
-        except (json.JSONDecodeError, OSError):
-            return None
-
-        if not isinstance(raw, list):
-            return None
-
-        records: List[MemoryRecord] = []
-        for item in raw:
-            try:
-                if isinstance(item, str):
-                    classification = classify_memory_text(item, source="legacy")
-                    records.append(
-                        MemoryRecord.create(
-                            text=item,
-                            category=classification.category,
-                            source="legacy",
-                            tags=classification.tags,
-                        )
-                    )
-                elif isinstance(item, dict):
-                    records.append(MemoryRecord.from_dict(item))
-                else:
-                    return None
-            except ValueError:
-                return None
-
-        return records
+    def _load_metadata(self) -> List[MemoryRecord]:
+        return self._load_records_from_db()
 
     def _load_index(self) -> Optional[faiss.Index]:
         try:
@@ -237,9 +335,11 @@ class VectorStore:
             )
         )
 
-        self.index.add(self._coerce_vector(embedding))
+        vector = self._coerce_vector(embedding)
+        self._insert_records([record])
+        self.index.add(vector)
         self._records.append(record)
-        self._save()
+        self._write_index()
         return True
 
     def add_text(
@@ -265,9 +365,11 @@ class VectorStore:
                 tags=list(tags or []),
             )
         )
-        self.index.add(self._coerce_vector(self.embed_fn(record.text)))
+        vector = self._coerce_vector(self.embed_fn(record.text))
+        self._insert_records([record])
+        self.index.add(vector)
         self._records.append(record)
-        self._save()
+        self._write_index()
         return True, record
 
     def add_many(self, drafts: Sequence[MemoryDraft]) -> tuple[int, int]:
@@ -304,9 +406,10 @@ class VectorStore:
             return 0, duplicates
 
         matrix = np.vstack(self._embed_many([record.text for record in new_records]))
+        self._insert_records(new_records)
         self.index.add(matrix)
         self._records.extend(new_records)
-        self._save()
+        self._write_index()
         return len(new_records), duplicates
 
     def search(self, embedding: Sequence[float], top_k: int = 1) -> List[RetrievedMemory]:
@@ -384,6 +487,12 @@ class VectorStore:
         self._reset_in_memory()
         self._save()
 
+    def rebuild_index(self) -> int:
+        if self._records and not self._can_embed():
+            raise ValueError("This operation requires an embedding function.")
+        self._rebuild_index_from_records(list(self._records))
+        return len(self._records)
+
     def size(self) -> int:
         return len(self._records)
 
@@ -394,11 +503,8 @@ class VectorStore:
         return list(self._records)
 
     def _save(self) -> None:
+        self._replace_all_records_in_db(self._records)
+        self._write_index()
+
+    def _write_index(self) -> None:
         faiss.write_index(self.index, str(self.index_path))
-        with self.metadata_path.open("w", encoding="utf-8") as file:
-            json.dump(
-                [record.to_dict() for record in self._records],
-                file,
-                indent=2,
-                ensure_ascii=False,
-            )

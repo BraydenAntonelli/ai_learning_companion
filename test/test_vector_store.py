@@ -24,7 +24,7 @@ class VectorStoreTests(unittest.TestCase):
         self.store = VectorStore(
             dim=3,
             index_path=temp_path / "memory.faiss",
-            metadata_path=temp_path / "memory.json",
+            metadata_path=temp_path / "memory.sqlite3",
             embed_fn=lambda text: self.embedding_map[text],
             embed_batch_fn=lambda texts: [self.embedding_map[text] for text in texts],
         )

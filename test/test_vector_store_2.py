@@ -1,10 +1,6 @@
-import json
 import tempfile
 import unittest
 from pathlib import Path
-
-import faiss
-import numpy as np
 
 from support import ensure_repo_root_on_path
 
@@ -18,7 +14,7 @@ class VectorStorePersistenceTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         temp_path = Path(self.temp_dir.name)
         self.index_path = temp_path / "memory.faiss"
-        self.metadata_path = temp_path / "memory.json"
+        self.metadata_path = temp_path / "memory.sqlite3"
         self.embedding_map = {
             "The sky is blue.": [1.0, 0.0, 0.0],
             "Fact one": [0.5, 0.5, 0.0],
@@ -53,15 +49,31 @@ class VectorStorePersistenceTests(unittest.TestCase):
             "The sky is blue.",
         )
 
-    def test_store_migrates_legacy_string_metadata_and_rebuilds_index(self) -> None:
-        legacy_index = faiss.IndexFlatL2(3)
-        legacy_index.add(np.array([[0.0, 0.0, 1.0]], dtype="float32"))
-        faiss.write_index(legacy_index, str(self.index_path))
-        self.metadata_path.write_text(
-            json.dumps(["Fact one", "Fact two"], indent=2),
-            encoding="utf-8",
+    def test_store_rebuilds_from_sqlite_with_batch_embedder_only_when_index_is_missing(self) -> None:
+        original_store = VectorStore(
+            dim=3,
+            index_path=self.index_path,
+            metadata_path=self.metadata_path,
+            embed_fn=lambda text: self.embedding_map[text],
+            embed_batch_fn=lambda texts: [self.embedding_map[text] for text in texts],
+        )
+        original_store.add_text("Fact one")
+        original_store.add_text("Fact two")
+
+        self.index_path.unlink()
+
+        store = VectorStore(
+            dim=3,
+            index_path=self.index_path,
+            metadata_path=self.metadata_path,
+            embed_fn=None,
+            embed_batch_fn=lambda texts: [self.embedding_map[text] for text in texts],
         )
 
+        self.assertEqual(store.size(), 2)
+        self.assertEqual(store.search([0.5, 0.5, 0.0], top_k=1)[0].record.text, "Fact one")
+
+    def test_cleared_sqlite_store_stays_empty_after_reload(self) -> None:
         store = VectorStore(
             dim=3,
             index_path=self.index_path,
@@ -69,10 +81,21 @@ class VectorStorePersistenceTests(unittest.TestCase):
             embed_fn=lambda text: self.embedding_map[text],
             embed_batch_fn=lambda texts: [self.embedding_map[text] for text in texts],
         )
+        store.add_text("Fact one")
+        self.assertEqual(store.size(), 1)
 
-        self.assertEqual(store.size(), 2)
-        self.assertEqual(store.records()[0].category, "factual_statement")
-        self.assertEqual(store.search([0.5, 0.5, 0.0], top_k=1)[0].record.text, "Fact one")
+        store.clear()
+        self.assertEqual(store.size(), 0)
+
+        reloaded_store = VectorStore(
+            dim=3,
+            index_path=self.index_path,
+            metadata_path=self.metadata_path,
+            embed_fn=lambda text: self.embedding_map[text],
+            embed_batch_fn=lambda texts: [self.embedding_map[text] for text in texts],
+        )
+
+        self.assertEqual(reloaded_store.size(), 0)
 
 
 if __name__ == "__main__":

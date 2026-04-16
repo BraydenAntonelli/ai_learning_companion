@@ -27,6 +27,10 @@ class MemoryClassifierTests(unittest.TestCase):
         classification = classify_memory_text("My favorite music is rock.")
         self.assertEqual(classification.category, "personal_context")
 
+    def test_classifies_embedded_personal_preference_as_personal_context(self) -> None:
+        classification = classify_memory_text("Pizza is my favorite food.")
+        self.assertEqual(classification.category, "personal_context")
+
     def test_classifies_academic_concept(self) -> None:
         classification = classify_memory_text("Photosynthesis is the process plants use to convert sunlight into energy.")
         self.assertEqual(classification.category, "academic_concept")

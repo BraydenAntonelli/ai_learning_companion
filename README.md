@@ -1,65 +1,119 @@
-# AI Learning Companion
+# AI Learning Aid
 
-AI Learning Companion is a local retrieval-based AI app for building and querying semantic memory. You can teach it facts directly in chat, upload notes or PDFs for ingestion, browse and edit stored memories, and review what it knows through a lightweight study mode.
+AI Learning Aid is a local semantic-memory app built around retrieval, persistence, and grounded answering. The assistant inside the app is called `Aila`, based on the initials in the project name.
 
-At its core, this project is an embeddings + vector search system:
+You can:
 
-- text is converted into semantic embeddings with `sentence-transformers`
-- embeddings are stored and searched with FAISS
-- the app decides whether a match is strong enough to answer
-- answers come from retrieved memory records plus response formatting logic
+- teach Aila facts, preferences, notes, and short concepts in chat
+- ask questions in natural language and retrieve the closest stored memory
+- upload `.txt`, `.md`, and `.pdf` files for ingestion
+- browse, edit, and delete stored memories
+- rate answers as `Correct` or `Incorrect`
+- optionally use a free local Ollama model to turn retrieved memory into a more natural answer
 
-The project demonstrates a fuller AI application pipeline than the original MVP:
+## What This Project Is
 
-- structured memory records instead of raw strings
-- normalized embeddings with cosine-similarity retrieval
-- confidence-aware answer selection
-- source-grounded responses with metadata
-- document upload and chunk ingestion
-- chat-style teach-or-ask interaction
-- memory browsing, editing, and deletion
-- review cards generated from stored knowledge
+At its core, this is a local retrieval system with structured memory.
 
-## What The App Does
+The current app:
 
-1. Accepts natural-language input in a unified chat interface.
-   Statements are stored as memory and questions are treated as retrieval queries.
-2. Classifies stored memories automatically.
-   New memories are labeled as personal context, academic concepts, factual statements, temporary notes, question-like inputs, or document excerpts.
-3. Converts memories into local embeddings.
-   The app uses `sentence-transformers` locally, so no paid API key is required.
-4. Stores memory persistently in FAISS plus structured JSON metadata.
-   Each record keeps text, category, source, tags, and timestamps.
-5. Uses cosine similarity for semantic retrieval.
-   Query and memory embeddings are normalized before search.
-6. Formats responses from retrieved memory.
-   The app returns stored memory text plus metadata and confidence details.
-7. Rejects weak or ambiguous matches.
-   The app uses both a minimum similarity threshold and a top-match gap threshold.
-8. Ingests uploaded documents.
-   Text, markdown, and PDF files can be chunked and added into memory.
-9. Supports lightweight study review.
-   Stored memories can be surfaced as simple flashcard-style prompts.
+- uses `sentence-transformers` to embed text locally
+- stores vector search data in `FAISS`
+- stores structured memory and feedback data in `SQLite`
+- uses cosine similarity and confidence thresholds to decide whether to answer
+- can optionally pass grounded retrieval results into a local LLM through `Ollama`
+
+The local LLM mode is an answer layer on top of retrieval. Aila still depends on stored memory and retrieved context, rather than answering from an unrestricted model prompt alone.
 
 ## Main Features
 
-- chat-style memory teaching and question answering
+- unified chat flow for teaching and asking
 - automatic memory classification
-- structured memory metadata with timestamps, source labels, and tags
+- persistent structured memory records
 - cosine-similarity retrieval with configurable thresholds
-- document upload for `.txt`, `.md`, and `.pdf`
-- memory browser with filters, editing, and deletion
-- feedback logging for retrieval quality
-- study review cards generated from saved memories
+- ambiguity and low-confidence rejection
+- optional grounded local LLM answers through Ollama
+- deterministic fallback answers when the local model is unavailable or weak
+- document upload and chunk ingestion
+- smarter upload splitting for lines, bullets, numbered lists, and long paragraphs
+- memory filtering, editing, and deletion
+- feedback logging in SQLite
+- lightweight study/review cards
 
-## Example Workflow
+## How It Works
 
-1. Chat: `Remember that my favorite music is rock.`
-2. Chat: `What is my favorite music?`
-3. The app retrieves the strongest memory match and decides whether it is confident enough to answer.
-4. Upload a study document and let the app chunk it into memory.
-5. Open the Memory tab to inspect records by category or source.
-6. Open the Review tab to test yourself on stored memories.
+1. You type a statement or a question.
+2. Aila decides whether the message looks like something to remember or something to answer.
+3. Stored text is embedded with a local `sentence-transformers` model.
+4. Embeddings are indexed in `FAISS` for semantic search.
+5. Memory records and feedback are stored in `SQLite`.
+6. A question is embedded and compared against stored memory.
+7. The app either:
+   - returns the retrieved memory directly, or
+   - sends grounded context into a local Ollama model for a more natural response
+8. If the best match is too weak or too ambiguous, Aila refuses to guess.
+
+## Current App Layout
+
+- `Chat`
+  Teach Aila a fact or ask a question in one place.
+- `Upload`
+  Ingest `.txt`, `.md`, and `.pdf` files into memory.
+- `Memory`
+  Browse, filter, edit, and delete saved records.
+- `Review`
+  Surface saved memories as simple study prompts.
+
+The main screen also includes:
+
+- a top view switch for `Chat`, `Upload`, `Memory`, and `Review`
+- a top answer-mode switch for `Direct answer` and `Local LLM`
+- a `Settings` expander for retrieval thresholds, local LLM settings, and maintenance actions
+
+## Example Flow
+
+1. Type: `My favorite food is pizza.`
+2. Aila stores it as a memory record.
+3. Ask: `What is my favorite food?`
+4. The app embeds the question and retrieves the closest memory.
+5. If the match is strong enough, Aila answers.
+6. You can rate the answer with `Correct` or `Incorrect`.
+
+## Storage
+
+The app now uses a split storage model:
+
+- [data/memory.sqlite3](data/memory.sqlite3)
+  Structured memory records and feedback records
+- [data/memory.faiss](data/memory.faiss)
+  Vector index used for semantic retrieval
+
+The live app uses SQLite + FAISS.
+
+## Data Model
+
+Each memory record stores:
+
+- `id`
+- `text`
+- `category`
+- `source`
+- `tags`
+- `created_at`
+- `updated_at`
+
+Feedback entries are stored in their own SQLite table and include:
+
+- `timestamp`
+- `question`
+- `answer`
+- `label`
+- `score`
+- `source_record_id`
+- `source_text`
+- `source_category`
+- `confidence_score`
+- `rejection_reason`
 
 ## Tech Stack
 
@@ -68,16 +122,98 @@ The project demonstrates a fuller AI application pipeline than the original MVP:
 - `faiss-cpu`
 - `numpy`
 - `pypdf`
+- `sqlite3` from the Python standard library
+- optional local `Ollama` runtime
 
-## How To Describe This Project
+## Setup
 
-If you are explaining it on GitHub, in an interview, or on a resume, a good short description is:
+Python `3.10+` is recommended.
 
-`A local semantic memory app that uses embeddings, FAISS vector search, and structured retrieval logic to store, retrieve, and review user-provided knowledge.`
+### Windows PowerShell
 
-If you want a slightly longer version:
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
-`This project is a retrieval-focused AI application that uses a local embedding model to map text into vectors, stores those vectors in FAISS, and returns the most relevant stored memory when the similarity score is high enough.`
+### macOS / Linux
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Run The App
+
+```bash
+python -m streamlit run app.py
+```
+
+## Optional Free Local LLM Mode
+
+If you want grounded generated answers without paying for an API, install Ollama and pull a local model.
+
+### Install Ollama
+
+Windows PowerShell:
+
+```powershell
+irm https://ollama.com/install.ps1 | iex
+```
+
+Linux:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+macOS:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+Then pull a model:
+
+```bash
+ollama pull llama3.2:3b
+```
+
+Then switch the app from `Direct answer` to `Local LLM`.
+
+`llama3.2:3b` is a good default here because it is small enough to run locally while still giving clean grounded rewrites.
+
+### Local LLM Behavior
+
+When `Local LLM` is enabled, the app:
+
+1. retrieves the strongest memory matches first
+2. checks whether retrieval is strong enough to answer
+3. sends grounded memory context into Ollama
+4. returns a more natural response if the model behaves well
+5. falls back to deterministic memory-based phrasing if Ollama is unavailable or the response is weak
+
+The first generated response can take longer while Ollama loads the model into memory.
+
+## Run The Tests
+
+```bash
+python -m unittest discover -s test
+```
+
+The test suite covers:
+
+- embedding behavior
+- memory classification
+- vector-store persistence and rebuild behavior
+- semantic search
+- answer-response logic
+- local Ollama helpers
+- feedback logging
+- document ingestion
+- study-card generation
 
 ## Project Structure
 
@@ -89,6 +225,7 @@ ai_learning_companion/
 |   `-- logger.py
 |-- llm/
 |   |-- __init__.py
+|   |-- ollama_client.py
 |   `-- responder.py
 |-- memory/
 |   |-- __init__.py
@@ -105,6 +242,7 @@ ai_learning_companion/
 |   |-- test_document_utils.py
 |   |-- test_embed.py
 |   |-- test_feedback_logger.py
+|   |-- test_ollama_client.py
 |   |-- test_responder.py
 |   |-- test_semantic_search.py
 |   |-- test_study_utils.py
@@ -118,90 +256,39 @@ ai_learning_companion/
 |   |-- study_utils.py
 |   `-- text_utils.py
 |-- data/
-|   `-- memory.json
+|   |-- memory.faiss
+|   `-- memory.sqlite3
 |-- requirements.txt
 `-- README.md
 ```
 
-Note: the `llm/` folder name is a leftover module label. The current responder logic handles retrieval decisions and response formatting.
+The repo folder name is still `ai_learning_companion`, even though the app itself is branded as `AI Learning Aid`.
 
-## Setup
+## Optimization Notes
 
-Python 3.10+ is recommended.
-
-### Windows PowerShell
-
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
-
-### macOS/Linux
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-## Run The App
-
-```bash
-python -m streamlit run app.py
-```
-
-### Tabs In The App
-
-- `Chat`: teach or ask with one unified input
-- `Upload`: ingest text, markdown, or PDF documents
-- `Memory`: browse, filter, edit, and delete records
-- `Review`: generate simple study cards from stored memories
-
-## Run The Tests
-
-```bash
-python -m unittest discover -s test
-```
-
-The test suite covers:
-
-- embedding normalization behavior
-- memory classification
-- structured vector-store persistence and migration
-- semantic search flow
-- answer-response logic
-- feedback logging
-- document-ingestion planning
-- flashcard generation
-
-## Data Model
-
-Each memory record stores:
-
-- text
-- category
-- source
-- tags
-- created timestamp
-- updated timestamp
-
-Embeddings live in `data/memory.faiss`, while structured metadata lives in `data/memory.json`.
-
-## Optimization Highlights
-
-- batch embedding support for document ingestion and index rebuilds
-- lazy model loading to avoid expensive imports before first use
-- normalized vector handling for stable cosine similarity
-- metadata migration from older raw-string memory files
-- word-aware chunking for uploaded documents
+- embeddings are normalized for stable cosine retrieval
+- batch embedding is used for ingestion and rebuild operations
+- the embedding model is lazy-loaded
+- retrieval uses confidence and ambiguity checks, not just top-1 matching
+- the local LLM path degrades cleanly instead of forcing generation
+- memory and feedback are now persisted in SQLite instead of flat files
+- upload ingestion now uses line-, list-, and sentence-aware splitting before size fallback
 
 ## Troubleshooting
 
-- If `streamlit` is not recognized, run the app with `python -m streamlit run app.py`.
-- If PDF uploads fail, make sure `pypdf` is installed from `requirements.txt`.
-- If retrieval is too strict, lower the minimum similarity or top-match gap in the sidebar.
+- If `streamlit` is not recognized, run `python -m streamlit run app.py`.
+- If PDF upload fails, make sure `pypdf` installed correctly from `requirements.txt`.
+- If retrieval feels too strict, lower the similarity or score-gap thresholds in `Settings`.
+- If local LLM mode is selected, make sure Ollama is running on `http://localhost:11434`.
+- If Ollama answers slowly the first time, that is usually just model load time.
+- If retrieval feels inconsistent after upgrades, use `Rebuild Embeddings` in `Settings`.
 - If `python` on Windows points to the Microsoft Store shim, activate a real virtual environment first and use that interpreter.
+
+## Resume / Portfolio Description
+
+Short version:
+
+`A local semantic-memory app that uses embeddings, FAISS, SQLite, and grounded retrieval logic to store, retrieve, and review user-provided knowledge, with an optional free local LLM answer layer through Ollama.`
 
 ## License
 

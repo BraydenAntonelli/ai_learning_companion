@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Dict, List, Optional
 
 from memory.models import MemoryRecord, RetrievedMemory
@@ -54,6 +55,51 @@ def build_teach_response(record: MemoryRecord, added: bool) -> str:
     if added:
         return f"I'll remember that as {category}."
     return f"I already had that saved in memory as {category}."
+
+
+def build_grounded_fallback_answer(question: str, source_record: MemoryRecord) -> str:
+    text = source_record.text.strip()
+    lowered_text = text.casefold()
+    lowered_question = question.casefold().strip()
+
+    if lowered_text.startswith("my favorite ") and " is " in lowered_text:
+        subject, value = text.split(" is ", 1)
+        return f"Your {subject[3:]} is {value}"
+
+    favorite_match = re.match(
+        r"^(?P<value>.+?) is my favorite (?P<subject>.+?)([.!?])?$",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if favorite_match:
+        subject = favorite_match.group("subject").strip()
+        value = favorite_match.group("value").strip()
+        return f"Your favorite {subject} is {value}."
+
+    if lowered_text.startswith("my name is "):
+        return "Your name is " + text[len("My name is ") :]
+
+    if lowered_text.startswith("i am "):
+        return "You are " + text[len("I am ") :]
+
+    if lowered_text.startswith("i'm "):
+        return "You are " + text[len("I'm ") :]
+
+    if lowered_text.startswith("i like "):
+        return "You like " + text[len("I like ") :]
+
+    if lowered_text.startswith("i love "):
+        return "You love " + text[len("I love ") :]
+
+    if lowered_text.startswith("i prefer "):
+        return "You prefer " + text[len("I prefer ") :]
+
+    if source_record.category == "personal_context":
+        if "what is my" in lowered_question or "what's my" in lowered_question:
+            return text.replace(" my ", " your ").replace("My ", "Your ", 1)
+        return text.replace(" I ", " you ").replace("I ", "You ", 1)
+
+    return text
 
 
 def build_answer_response(

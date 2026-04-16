@@ -3,4 +3,4 @@ __pycache__/
 *.pyc
 .streamlit/
 data/memory.faiss
-data/feedback_log.jsonl
+data/memory.sqlite3

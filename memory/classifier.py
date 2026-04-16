@@ -137,20 +137,28 @@ def classify_memory_text(text: str, source: str = "manual") -> MemoryClassificat
             tags=_unique_tags(tags),
         )
 
-    personal_markers = (
-        "my ",
-        "i ",
+    personal_context_phrases = (
+        "my favorite",
+        "i prefer",
+        "i like",
+        "i love",
+        "my name is",
+        "i am",
+        "i'm",
     )
     preference_markers = (
         "favorite",
         "prefer",
         "like",
         "love",
-        "have",
-        "am",
         "name is",
+        "i am",
+        "i'm",
     )
-    if lowered.startswith(personal_markers) and any(marker in lowered for marker in preference_markers):
+    if any(phrase in lowered for phrase in personal_context_phrases) or (
+        lowered.startswith(("my ", "i "))
+        and any(marker in lowered for marker in preference_markers)
+    ):
         tags.extend(["personal", "profile"])
         return MemoryClassification(
             category="personal_context",
