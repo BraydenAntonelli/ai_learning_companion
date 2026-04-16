@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
-SearchResult = Tuple[str, float]
+from memory.models import MemoryRecord, RetrievedMemory
 
-DEFAULT_NO_ANSWER = "I'm sorry, I don't seem to have a clear answer for that one."
-DEFAULT_LOW_CONFIDENCE = "I'm not confident enough to answer that yet. Try teaching me first."
+DEFAULT_NO_ANSWER = "I couldn't find a relevant memory for that yet."
+DEFAULT_LOW_CONFIDENCE = "I found something related, but I'm not confident enough to answer clearly."
 DEFAULT_AMBIGUOUS_ANSWER = (
-    "I found more than one close memory and I'm not confident which one you mean yet."
+    "I found multiple similarly strong memories, so I don't want to guess."
 )
 
 
@@ -15,24 +15,27 @@ def _clamp(value: float, min_value: float, max_value: float) -> float:
     return max(min_value, min(max_value, value))
 
 
-def _compute_confidence_score(
-    best_distance: float,
-    max_distance: float,
-    distance_gap: Optional[float],
-    min_distance_gap: float,
-) -> int:
-    if max_distance <= 0:
-        return 0
+def format_category_label(category: str) -> str:
+    return category.replace("_", " ").title()
 
-    distance_component = _clamp(1 - (best_distance / max_distance), 0.0, 1.0)
-    if distance_gap is None:
-        gap_component = 1.0 if best_distance <= max_distance else 0.0
-    elif min_distance_gap <= 0:
+
+def _compute_confidence_score(
+    best_score: float,
+    min_similarity: float,
+    score_gap: Optional[float],
+    min_score_gap: float,
+) -> int:
+    upper_range = max(1.0 - min_similarity, 1e-6)
+    score_component = _clamp((best_score - min_similarity) / upper_range, 0.0, 1.0)
+
+    if score_gap is None:
+        gap_component = 1.0 if best_score >= min_similarity else 0.0
+    elif min_score_gap <= 0:
         gap_component = 1.0
     else:
-        gap_component = _clamp(distance_gap / min_distance_gap, 0.0, 1.0)
+        gap_component = _clamp(score_gap / min_score_gap, 0.0, 1.0)
 
-    score = round(((distance_component * 0.75) + (gap_component * 0.25)) * 100)
+    score = round(((score_component * 0.75) + (gap_component * 0.25)) * 100)
     return int(_clamp(score, 0, 100))
 
 
@@ -41,57 +44,63 @@ def _confidence_label(score: Optional[int]) -> Optional[str]:
         return None
     if score >= 75:
         return "high"
-    if score >= 40:
+    if score >= 45:
         return "medium"
     return "low"
 
 
+def build_teach_response(record: MemoryRecord, added: bool) -> str:
+    category = format_category_label(record.category).lower()
+    if added:
+        return f"I'll remember that as {category}."
+    return f"I already had that saved in memory as {category}."
+
+
 def build_answer_response(
-    results: List[SearchResult],
-    max_distance: float = 1.0,
-    min_distance_gap: float = 0.15,
+    results: List[RetrievedMemory],
+    min_similarity: float = 0.45,
+    min_score_gap: float = 0.05,
 ) -> Dict[str, object]:
     """Convert retrieval results into a UI-friendly answer response."""
     if not results:
         return {
             "found": False,
             "answer": DEFAULT_NO_ANSWER,
-            "distance": None,
-            "second_distance": None,
-            "distance_gap": None,
-            "source_text": None,
-            "alternate_source_text": None,
+            "score": None,
+            "second_score": None,
+            "score_gap": None,
+            "source_record": None,
+            "alternate_source_record": None,
             "confidence_score": None,
             "confidence_label": None,
             "rejection_reason": "no_results",
         }
 
-    best_text, best_distance = results[0]
-    second_text: Optional[str] = None
-    second_distance: Optional[float] = None
+    best_match = results[0]
+    second_match: Optional[RetrievedMemory] = None
     if len(results) > 1:
-        second_text, second_distance = results[1]
+        second_match = results[1]
 
-    distance_gap = None
-    if second_distance is not None:
-        distance_gap = second_distance - best_distance
+    score_gap = None
+    if second_match is not None:
+        score_gap = best_match.score - second_match.score
 
     confidence_score = _compute_confidence_score(
-        best_distance,
-        max_distance=max_distance,
-        distance_gap=distance_gap,
-        min_distance_gap=min_distance_gap,
+        best_match.score,
+        min_similarity=min_similarity,
+        score_gap=score_gap,
+        min_score_gap=min_score_gap,
     )
 
     rejection_reason: Optional[str] = None
     found = True
-    answer = best_text
+    answer = best_match.record.text
 
-    if best_distance > max_distance:
+    if best_match.score < min_similarity:
         found = False
         answer = DEFAULT_LOW_CONFIDENCE
         rejection_reason = "low_confidence"
-    elif distance_gap is not None and distance_gap < min_distance_gap:
+    elif score_gap is not None and score_gap < min_score_gap:
         found = False
         answer = DEFAULT_AMBIGUOUS_ANSWER
         rejection_reason = "ambiguous"
@@ -100,11 +109,11 @@ def build_answer_response(
     return {
         "found": found,
         "answer": answer,
-        "distance": best_distance,
-        "second_distance": second_distance,
-        "distance_gap": distance_gap,
-        "source_text": best_text,
-        "alternate_source_text": second_text,
+        "score": best_match.score,
+        "second_score": None if second_match is None else second_match.score,
+        "score_gap": score_gap,
+        "source_record": best_match.record,
+        "alternate_source_record": None if second_match is None else second_match.record,
         "confidence_score": confidence_score,
         "confidence_label": _confidence_label(confidence_score),
         "rejection_reason": rejection_reason,

@@ -11,8 +11,10 @@ def log_feedback(
     question: str,
     answer: str,
     label: str,
-    distance: Optional[float] = None,
+    score: Optional[float] = None,
+    source_record_id: Optional[str] = None,
     source_text: Optional[str] = None,
+    source_category: Optional[str] = None,
     confidence_score: Optional[int] = None,
     rejection_reason: Optional[str] = None,
 ) -> None:
@@ -22,8 +24,10 @@ def log_feedback(
         "question": question,
         "answer": answer,
         "label": label,
-        "distance": distance,
+        "score": score,
+        "source_record_id": source_record_id,
         "source_text": source_text,
+        "source_category": source_category,
         "confidence_score": confidence_score,
         "rejection_reason": rejection_reason,
     }

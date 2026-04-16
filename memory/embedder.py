@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Sequence
 
 from utils.text_utils import normalize_text
 
@@ -20,14 +20,25 @@ def get_model() -> "SentenceTransformer":
 
 
 def embed_text(text: str) -> List[float]:
-    """Convert text into a local semantic embedding vector."""
-    cleaned = normalize_text(text)
-    if not cleaned:
+    """Convert text into a normalized semantic embedding vector."""
+    embeddings = embed_texts([text])
+    if not embeddings:
+        raise ValueError("Cannot embed empty text")
+    return embeddings[0]
+
+
+def embed_texts(texts: Sequence[str]) -> List[List[float]]:
+    """Convert multiple texts into normalized semantic embedding vectors."""
+    cleaned_texts = [normalize_text(text) for text in texts]
+    if any(not text for text in cleaned_texts):
         raise ValueError("Cannot embed empty text")
 
-    embedding = get_model().encode(
-        cleaned,
+    if not cleaned_texts:
+        return []
+
+    embeddings = get_model().encode(
+        list(cleaned_texts),
         convert_to_numpy=True,
-        normalize_embeddings=False,
+        normalize_embeddings=True,
     )
-    return embedding.astype("float32").tolist()
+    return embeddings.astype("float32").tolist()
