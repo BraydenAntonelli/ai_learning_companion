@@ -1,9 +1,4 @@
 streamlit
 sentence-transformers
 faiss-cpu
-tqdm
 numpy
-python-dotenv
-# Stretch goal additional dependencies
-requests         # For web search fallback
-PyMuPDF          # For PDF parsing (if you do document upload)
