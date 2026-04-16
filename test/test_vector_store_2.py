@@ -1,46 +1,63 @@
-from memory.embedder import embed_text
-from memory.vector_store import VectorStore
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+import faiss
 import numpy as np
 
-# Initialize vector store
-store = VectorStore(
-    dim=384,
-    index_path="data/memory.faiss",
-    metadata_path="data/memory.json"
-)
+from support import ensure_repo_root_on_path
 
-# Clear memory for clean test (use only for isolated testing)
-store.index.reset()
-store.metadata = []
+ensure_repo_root_on_path()
 
-# Teaching facts
-sentences = [
-    "The dog sat on the lawn.",
-    "A feline was sleeping on the sofa.",
-    "Reinforcement learning uses rewards and penalties.",
-    "Photosynthesis is the process plants use to convert sunlight into energy.",
-    "The Battle of Hastings occurred in 1066.",
-    "E = mc^2 is Einstein's theory of mass-energy equivalence."
-]
+from memory.vector_store import VectorStore
 
-for sentence in sentences:
-    store.add(embed_text(sentence), sentence)
 
-# Test queries
-queries = [
-    "How do plants get energy from the sun?",
-    "What happened in 1066?",
-    "How do machines learn from rewards?",
-    "Tell me something about dogs.",
-    "Explain Einstein's equation about mass."
-]
+class VectorStorePersistenceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        temp_path = Path(self.temp_dir.name)
+        self.index_path = temp_path / "memory.faiss"
+        self.metadata_path = temp_path / "memory.json"
 
-# Run search
-for query in queries:
-    query_vec = embed_text(query)
-    results = store.search(query_vec, top_k=2)
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
 
-    print(f"\nQuery: {query}")
-    print("Top matches:")
-    for match, score in results:
-        print(f"→ {match} (distance: {round(score, 4)})")
+    def test_store_persists_and_reloads_saved_facts(self) -> None:
+        original_store = VectorStore(
+            dim=3,
+            index_path=self.index_path,
+            metadata_path=self.metadata_path,
+        )
+        original_store.add([0.0, 0.0, 0.0], "The sky is blue.")
+
+        reloaded_store = VectorStore(
+            dim=3,
+            index_path=self.index_path,
+            metadata_path=self.metadata_path,
+        )
+
+        self.assertEqual(reloaded_store.facts(), ["The sky is blue."])
+        self.assertEqual(reloaded_store.search([0.0, 0.0, 0.0], top_k=1)[0][0], "The sky is blue.")
+
+    def test_store_recovers_from_mismatched_metadata_and_index(self) -> None:
+        index = faiss.IndexFlatL2(3)
+        index.add(np.array([[0.0, 0.0, 0.0]], dtype="float32"))
+        faiss.write_index(index, str(self.index_path))
+        self.metadata_path.write_text(
+            json.dumps(["Fact one", "Fact two"], indent=2),
+            encoding="utf-8",
+        )
+
+        store = VectorStore(
+            dim=3,
+            index_path=self.index_path,
+            metadata_path=self.metadata_path,
+        )
+
+        self.assertEqual(store.size(), 0)
+        self.assertEqual(store.search([0.0, 0.0, 0.0], top_k=1), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
