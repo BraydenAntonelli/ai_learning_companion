@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+.streamlit/
+data/memory.faiss
+data/feedback_log.jsonl
