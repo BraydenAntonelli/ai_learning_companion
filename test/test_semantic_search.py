@@ -35,17 +35,17 @@ class SemanticSearchTests(unittest.TestCase):
         self.assertEqual(results, [])
 
     def test_search_memory_embeds_normalized_query_and_returns_match(self) -> None:
-        self.store.add([0.0, 0.0, 0.0], "My favorite music is rock.")
-        self.store.add([4.0, 4.0, 4.0], "I also like jazz.")
+        self.store.add([1.0, 0.0, 0.0], "My favorite music is rock.")
+        self.store.add([0.0, 1.0, 0.0], "I also like jazz.")
 
         with patch(
             "retriever.semantic_search.embed_text",
-            return_value=[0.1, 0.0, 0.0],
+            return_value=[0.9, 0.1, 0.0],
         ) as mock_embed:
             results = search_memory("  What is   my favorite music?  ", self.store, top_k=1)
 
         mock_embed.assert_called_once_with("What is my favorite music?")
-        self.assertEqual(results[0][0], "My favorite music is rock.")
+        self.assertEqual(results[0].record.text, "My favorite music is rock.")
 
 
 if __name__ == "__main__":

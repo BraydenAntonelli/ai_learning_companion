@@ -21,8 +21,10 @@ class FeedbackLoggerTests(unittest.TestCase):
                     question="What is my favorite music?",
                     answer="My favorite music is rock.",
                     label="up",
-                    distance=0.12,
+                    score=0.92,
+                    source_record_id="abc123",
                     source_text="My favorite music is rock.",
+                    source_category="personal_context",
                     confidence_score=92,
                     rejection_reason=None,
                 )
@@ -30,8 +32,10 @@ class FeedbackLoggerTests(unittest.TestCase):
                     question="What is my favorite color?",
                     answer="I do not know yet.",
                     label="down",
-                    distance=1.45,
+                    score=0.18,
+                    source_record_id="def456",
                     source_text="My favorite color is blue.",
+                    source_category="personal_context",
                     confidence_score=18,
                     rejection_reason="low_confidence",
                 )
@@ -46,7 +50,7 @@ class FeedbackLoggerTests(unittest.TestCase):
                     for line in feedback_path.read_text(encoding="utf-8").splitlines()
                     if line.strip()
                 ]
-                self.assertEqual(records[0]["confidence_score"], 92)
+                self.assertEqual(records[0]["score"], 0.92)
                 self.assertEqual(records[1]["rejection_reason"], "low_confidence")
 
                 clear_feedback_log()
