@@ -1,20 +1,43 @@
+import unittest
+from unittest.mock import Mock, patch
+
+from support import ensure_repo_root_on_path
+
+ensure_repo_root_on_path()
+
 from memory.embedder import embed_text
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
 
-text1 = "The dog sat on the lawn."
-text2 = "A canine was relaxing on the grass."
 
-# Generate embeddings
-vec1 = np.array(embed_text(text1))
-vec2 = np.array(embed_text(text2))
+class FakeEmbedding:
+    def __init__(self, values):
+        self.values = values
 
-# Compute cosine similarity
-similarity = cosine_similarity([vec1], [vec2])[0][0]
+    def astype(self, _dtype: str):
+        return self
 
-# Print results
-print(f"\nText 1: {text1}")
-print(f"Text 2: {text2}")
-print(f"Embedding 1 (first 5 values): {np.round(vec1[:5], 4)}")
-print(f"Embedding 2 (first 5 values): {np.round(vec2[:5], 4)}")
-print(f"\nCosine similarity: {similarity:.4f}")
+    def tolist(self):
+        return list(self.values)
+
+
+class EmbedTextTests(unittest.TestCase):
+    def test_embed_text_normalizes_input_before_encoding(self) -> None:
+        fake_model = Mock()
+        fake_model.encode.return_value = FakeEmbedding([1.0, 2.0, 3.0])
+
+        with patch("memory.embedder.get_model", return_value=fake_model):
+            result = embed_text("  The   dog sat on the lawn.  ")
+
+        fake_model.encode.assert_called_once_with(
+            "The dog sat on the lawn.",
+            convert_to_numpy=True,
+            normalize_embeddings=False,
+        )
+        self.assertEqual(result, [1.0, 2.0, 3.0])
+
+    def test_embed_text_rejects_empty_input(self) -> None:
+        with self.assertRaises(ValueError):
+            embed_text("   ")
+
+
+if __name__ == "__main__":
+    unittest.main()

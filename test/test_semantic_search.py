@@ -1,15 +1,52 @@
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from support import ensure_repo_root_on_path
+
+ensure_repo_root_on_path()
+
+from memory.vector_store import VectorStore
 from retriever.semantic_search import search_memory
 
-print("Ask me a question (type 'exit' to quit):\n")
 
-while True:
-    query = input("→ Question: ")
-    if query.strip().lower() == "exit":
-        break
+class SemanticSearchTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        temp_path = Path(self.temp_dir.name)
+        self.store = VectorStore(
+            dim=3,
+            index_path=temp_path / "memory.faiss",
+            metadata_path=temp_path / "memory.json",
+        )
 
-    results = search_memory(query, top_k=3)
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
 
-    print("Top matches:")
-    for match, dist in results:
-        print(f"→ {match} (distance: {round(dist, 4)})")
-    print()
+    def test_empty_query_returns_no_results(self) -> None:
+        self.assertEqual(search_memory("   ", self.store, top_k=1), [])
+
+    def test_empty_store_returns_no_results_without_embedding(self) -> None:
+        with patch("retriever.semantic_search.embed_text") as mock_embed:
+            results = search_memory("What is my favorite music?", self.store, top_k=1)
+
+        mock_embed.assert_not_called()
+        self.assertEqual(results, [])
+
+    def test_search_memory_embeds_normalized_query_and_returns_match(self) -> None:
+        self.store.add([0.0, 0.0, 0.0], "My favorite music is rock.")
+        self.store.add([4.0, 4.0, 4.0], "I also like jazz.")
+
+        with patch(
+            "retriever.semantic_search.embed_text",
+            return_value=[0.1, 0.0, 0.0],
+        ) as mock_embed:
+            results = search_memory("  What is   my favorite music?  ", self.store, top_k=1)
+
+        mock_embed.assert_called_once_with("What is my favorite music?")
+        self.assertEqual(results[0][0], "My favorite music is rock.")
+
+
+if __name__ == "__main__":
+    unittest.main()

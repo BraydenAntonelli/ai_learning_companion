@@ -1,18 +1,24 @@
+from __future__ import annotations
+
 from typing import List, Tuple
+
 from memory.embedder import embed_text
 from memory.vector_store import VectorStore
+from utils.text_utils import normalize_text
 
-def search_memory(query: str, store: VectorStore, top_k: int = 3) -> List[Tuple[str, float]]:
-    """
-    Embed the query and return the top_k closest text matches from memory
-        Returns:  List of (text, distance) tuples.
-    """
-    if not query.strip():
+
+def search_memory(
+    query: str,
+    store: VectorStore,
+    top_k: int = 1,
+) -> List[Tuple[str, float]]:
+    """Embed a query and return the closest matches from memory."""
+    cleaned_query = normalize_text(query)
+    if not cleaned_query:
         return []
 
-    if len(store.metadata) == 0:
+    if store.size() == 0:
         return []
 
-    query_vec = embed_text(query)
-    results = store.search(query_vec, top_k=1)
-    return results
+    query_vec = embed_text(cleaned_query)
+    return store.search(query_vec, top_k=top_k)
