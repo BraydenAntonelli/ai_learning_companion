@@ -1,6 +1,13 @@
 # AI Learning Companion
 
-AI Learning Companion is a local Streamlit app for building and querying semantic memory. You can teach it facts directly in chat, upload notes or PDFs for ingestion, browse and edit stored memories, and review what it knows through a lightweight study mode.
+AI Learning Companion is a local retrieval-based AI app for building and querying semantic memory. You can teach it facts directly in chat, upload notes or PDFs for ingestion, browse and edit stored memories, and review what it knows through a lightweight study mode.
+
+At its core, this project is an embeddings + vector search system:
+
+- text is converted into semantic embeddings with `sentence-transformers`
+- embeddings are stored and searched with FAISS
+- the app decides whether a match is strong enough to answer
+- answers come from retrieved memory records plus response formatting logic
 
 The project demonstrates a fuller AI application pipeline than the original MVP:
 
@@ -25,11 +32,13 @@ The project demonstrates a fuller AI application pipeline than the original MVP:
    Each record keeps text, category, source, tags, and timestamps.
 5. Uses cosine similarity for semantic retrieval.
    Query and memory embeddings are normalized before search.
-6. Rejects weak or ambiguous matches.
+6. Formats responses from retrieved memory.
+   The app returns stored memory text plus metadata and confidence details.
+7. Rejects weak or ambiguous matches.
    The app uses both a minimum similarity threshold and a top-match gap threshold.
-7. Ingests uploaded documents.
+8. Ingests uploaded documents.
    Text, markdown, and PDF files can be chunked and added into memory.
-8. Supports lightweight study review.
+9. Supports lightweight study review.
    Stored memories can be surfaced as simple flashcard-style prompts.
 
 ## Main Features
@@ -59,6 +68,16 @@ The project demonstrates a fuller AI application pipeline than the original MVP:
 - `faiss-cpu`
 - `numpy`
 - `pypdf`
+
+## How To Describe This Project
+
+If you are explaining it on GitHub, in an interview, or on a resume, a good short description is:
+
+`A local semantic memory app that uses embeddings, FAISS vector search, and structured retrieval logic to store, retrieve, and review user-provided knowledge.`
+
+If you want a slightly longer version:
+
+`This project is a retrieval-focused AI application that uses a local embedding model to map text into vectors, stores those vectors in FAISS, and returns the most relevant stored memory when the similarity score is high enough.`
 
 ## Project Structure
 
@@ -103,6 +122,8 @@ ai_learning_companion/
 |-- requirements.txt
 `-- README.md
 ```
+
+Note: the `llm/` folder name is a leftover module label. The current responder logic handles retrieval decisions and response formatting.
 
 ## Setup
 

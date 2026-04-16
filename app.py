@@ -41,6 +41,8 @@ def init_session_state() -> None:
         "chat_history": [],
         "last_question": None,
         "last_response": None,
+        "notices": [],
+        "last_upload_summary": [],
         "study_record_id": None,
         "study_revealed": False,
     }
@@ -49,10 +51,14 @@ def init_session_state() -> None:
             st.session_state[key] = value
 
 
-def clear_memory_editor_state() -> None:
+def clear_state_by_prefixes(prefixes: tuple[str, ...]) -> None:
     for key in list(st.session_state.keys()):
-        if key.startswith("memory_editor_"):
+        if any(key.startswith(prefix) for prefix in prefixes):
             del st.session_state[key]
+
+
+def clear_memory_editor_state() -> None:
+    clear_state_by_prefixes(("memory_editor_", "memory_filter_", "study_"))
 
 
 def reset_answer_state() -> None:
@@ -65,6 +71,24 @@ def reset_app_state() -> None:
     clear_memory_editor_state()
     st.session_state.study_record_id = None
     st.session_state.study_revealed = False
+
+
+def push_notice(level: str, message: str) -> None:
+    st.session_state.notices.append({"level": level, "message": message})
+
+
+def render_notices() -> None:
+    notices = list(st.session_state.notices)
+    st.session_state.notices = []
+    for notice in notices:
+        level = notice["level"]
+        message = notice["message"]
+        if level == "success":
+            st.success(message)
+        elif level == "warning":
+            st.warning(message)
+        else:
+            st.info(message)
 
 
 def append_chat_message(role: str, content: str) -> None:
@@ -156,7 +180,7 @@ def render_feedback_section(question: str, response: Dict[str, Any]) -> None:
                 rejection_reason=response.get("rejection_reason"),
                 label="up",
             )
-            st.success("Feedback saved.")
+            push_notice("success", "Feedback saved.")
             st.rerun()
 
     with feedback_col2:
@@ -172,7 +196,7 @@ def render_feedback_section(question: str, response: Dict[str, Any]) -> None:
                 rejection_reason=response.get("rejection_reason"),
                 label="down",
             )
-            st.success("Feedback saved.")
+            push_notice("success", "Feedback saved.")
             st.rerun()
 
 
@@ -241,6 +265,11 @@ def render_upload_tab(store: VectorStore) -> None:
     st.subheader("Document Upload")
     st.caption("Upload text, markdown, or PDF files to chunk and add them into semantic memory.")
 
+    if st.session_state.last_upload_summary:
+        with st.expander("Last Upload Summary", expanded=True):
+            for preview in st.session_state.last_upload_summary:
+                st.write(f"- {preview}")
+
     uploaded_files = st.file_uploader(
         "Choose files to ingest",
         type=list(SUPPORTED_UPLOAD_EXTENSIONS),
@@ -280,18 +309,17 @@ def render_upload_tab(store: VectorStore) -> None:
 
         added_count, duplicate_count = store.add_many(drafts)
         reset_app_state()
+        st.session_state.last_upload_summary = previews
 
         if added_count > 0:
-            st.success(f"Added {added_count} new document chunks to memory.")
+            push_notice("success", f"Added {added_count} new document chunks to memory.")
         if duplicate_count > 0:
-            st.info(f"Skipped {duplicate_count} duplicate chunks.")
+            push_notice("info", f"Skipped {duplicate_count} duplicate chunks.")
         for failure in failures:
-            st.warning(failure)
-
-        if previews:
-            with st.expander("Upload Summary", expanded=True):
-                for preview in previews:
-                    st.write(f"- {preview}")
+            push_notice("warning", failure)
+        if added_count == 0 and duplicate_count == 0 and not failures:
+            push_notice("info", "No new chunks were added from the selected files.")
+        st.rerun()
 
 
 def render_memory_tab(store: VectorStore) -> None:
@@ -401,26 +429,30 @@ def render_memory_tab(store: VectorStore) -> None:
                     tags=split_tags(edited_tags),
                 )
             except ValueError:
-                st.warning("Please enter a non-empty memory before saving.")
+                push_notice("warning", "Please enter a non-empty memory before saving.")
+                st.rerun()
             else:
                 if status == "updated":
                     reset_app_state()
-                    st.success("Memory updated.")
+                    push_notice("success", "Memory updated.")
                     st.rerun()
                 elif status == "duplicate":
-                    st.info("That updated memory already exists.")
+                    push_notice("info", "That updated memory already exists.")
+                    st.rerun()
                 else:
-                    st.warning("The selected memory could not be found.")
+                    push_notice("warning", "The selected memory could not be found.")
+                    st.rerun()
 
     with manage_col2:
         if st.button("Delete Selected Memory", use_container_width=True, key="memory_editor_delete"):
             deleted = store.delete_record(selected_record.id)
             if deleted:
                 reset_app_state()
-                st.success("Memory deleted.")
+                push_notice("success", "Memory deleted.")
                 st.rerun()
             else:
-                st.warning("The selected memory could not be found.")
+                push_notice("warning", "The selected memory could not be found.")
+                st.rerun()
 
 
 def render_review_tab(store: VectorStore) -> None:
@@ -482,6 +514,7 @@ st.caption(
 )
 
 init_session_state()
+render_notices()
 store = get_store()
 records = store.records()
 
@@ -521,12 +554,13 @@ with st.sidebar:
         store.clear()
         reset_app_state()
         st.session_state.chat_history = []
-        st.success("Memory cleared.")
+        st.session_state.last_upload_summary = []
+        push_notice("success", "Memory cleared.")
         st.rerun()
 
     if st.button("Clear Feedback Log", type="secondary", use_container_width=True):
         clear_feedback_log()
-        st.success("Feedback log cleared.")
+        push_notice("success", "Feedback log cleared.")
         st.rerun()
 
 chat_tab, upload_tab, memory_tab, review_tab = st.tabs(
