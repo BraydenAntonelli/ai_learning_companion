@@ -2,6 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+"""Core vector-store behavior tests for add, update, delete, and search."""
+
 from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()

@@ -1,5 +1,7 @@
 import unittest
 
+"""Checks the rule-based classifier so the obvious categories stay obvious."""
+
 from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()

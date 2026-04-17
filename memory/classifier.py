@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+"""Lightweight rule-based memory classification.
+
+Nothing fancy here on purpose. The rules are simple, local, and easy to tweak.
+"""
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
@@ -67,6 +72,7 @@ def _unique_tags(tags: List[str]) -> List[str]:
 
 
 def looks_like_question(text: str) -> bool:
+    # A quick first pass is enough for this app. We just need a solid guess, not deep NLP.
     cleaned = normalize_text(text)
     if not cleaned:
         return False
@@ -110,6 +116,7 @@ def classify_memory_text(text: str, source: str = "manual") -> MemoryClassificat
             tags.append(filename_stem.replace("_", "-").replace(" ", "-").casefold())
 
     if source.startswith("upload:"):
+        # Uploaded text is treated as document memory first, even if the wording looks like a question.
         return MemoryClassification(
             category="document_excerpt",
             tags=_unique_tags(tags),

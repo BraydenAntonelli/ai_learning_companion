@@ -1,5 +1,7 @@
 import unittest
 
+"""Covers the answer-shaping layer that sits on top of retrieval."""
+
 from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()

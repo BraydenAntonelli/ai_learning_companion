@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import Mock, patch
 
+"""Makes sure embedding helpers normalize input and fall back cleanly."""
+
 from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()

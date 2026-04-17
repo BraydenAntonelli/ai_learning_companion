@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Helpers for turning retrieval results into user-facing answers."""
+
 import re
 from typing import Dict, List, Optional
 
@@ -26,6 +28,7 @@ def _compute_confidence_score(
     score_gap: Optional[float],
     min_score_gap: float,
 ) -> int:
+    # This is just a small heuristic score for the UI, not a fancy calibrated probability.
     upper_range = max(1.0 - min_similarity, 1e-6)
     score_component = _clamp((best_score - min_similarity) / upper_range, 0.0, 1.0)
 
@@ -58,6 +61,7 @@ def build_teach_response(record: MemoryRecord, added: bool) -> str:
 
 
 def build_grounded_fallback_answer(question: str, source_record: MemoryRecord) -> str:
+    # When the LLM is off or flaky, this tries to make direct memory answers sound a little nicer.
     text = source_record.text.strip()
     lowered_text = text.casefold()
     lowered_question = question.casefold().strip()

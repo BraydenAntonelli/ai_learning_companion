@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Small data models shared across memory, retrieval, and UI code."""
+
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -26,6 +28,7 @@ def _normalize_tags(tags: List[str]) -> List[str]:
 
 @dataclass
 class MemoryDraft:
+    # Drafts are the loose version used before a record is fully normalized and saved.
     text: str
     source: str = "manual"
     category: Optional[str] = None
@@ -34,6 +37,7 @@ class MemoryDraft:
 
 @dataclass
 class MemoryRecord:
+    # This is the durable shape that ends up in SQLite and the UI.
     id: str
     text: str
     category: str
@@ -100,5 +104,6 @@ class MemoryRecord:
 
 @dataclass
 class RetrievedMemory:
+    # Retrieval keeps the original record plus the score that found it.
     record: MemoryRecord
     score: float

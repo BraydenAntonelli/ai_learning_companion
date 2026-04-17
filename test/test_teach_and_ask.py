@@ -3,6 +3,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+"""Smoke tests the basic teach-then-ask flow."""
+
 from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()

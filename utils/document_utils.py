@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Helpers for turning uploaded files into memory-friendly chunks."""
+
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -40,6 +42,7 @@ def _filename_tags(name: str) -> List[str]:
 
 
 def _normalize_document_text(text: str) -> str:
+    # Keep paragraph breaks, but clean up messy whitespace inside each line.
     lines = []
     for raw_line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
         line = re.sub(r"[ \t]+", " ", raw_line).strip()
@@ -83,6 +86,7 @@ def _with_heading(text: str, heading: str | None) -> str:
 
 
 def _split_long_unit(text: str, max_chars: int) -> List[str]:
+    # Try sentence-aware splits first, then fall back to the plain chunker if needed.
     cleaned = normalize_text(text)
     if not cleaned:
         return []
@@ -123,6 +127,7 @@ def _split_long_unit(text: str, max_chars: int) -> List[str]:
 
 
 def split_document_text(text: str, max_chars: int = DEFAULT_CHUNK_SIZE) -> List[str]:
+    # This is where line-based facts, bullets, and paragraph notes all get normalized into cleaner units.
     if max_chars <= 0:
         raise ValueError("max_chars must be greater than 0")
 
@@ -205,6 +210,7 @@ def build_document_ingestion_plan(
     uploaded_file: UploadedFileLike,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> DocumentIngestionPlan:
+    # The plan keeps the raw extracted text plus the final chunks the store will save.
     text = extract_text_from_upload(uploaded_file)
     chunks = split_document_text(text, max_chars=chunk_size)
     if not chunks:

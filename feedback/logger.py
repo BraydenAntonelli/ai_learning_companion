@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+"""Small feedback logger.
+
+Everything lands in the same SQLite file as memory, just in its own table.
+"""
+
 from contextlib import contextmanager
 import sqlite3
 from datetime import datetime, timezone
@@ -25,6 +30,7 @@ CREATE TABLE IF NOT EXISTS feedback (
 
 
 def _connect() -> sqlite3.Connection:
+    # Reuse the project data folder, but keep feedback separated by table.
     FEEDBACK_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(str(FEEDBACK_DB_PATH))
     connection.row_factory = sqlite3.Row
@@ -42,6 +48,8 @@ def _connection():
         raise
     finally:
         connection.close()
+
+
 def _init_feedback_store() -> None:
     with _connection() as connection:
         connection.execute(CREATE_FEEDBACK_TABLE_SQL)
@@ -64,6 +72,7 @@ def log_feedback(
     confidence_score: Optional[int] = None,
     rejection_reason: Optional[str] = None,
 ) -> None:
+    # Keep the stored shape simple so the app can count and inspect feedback quickly.
     _init_feedback_store()
     with _connection() as connection:
         connection.execute(
@@ -98,6 +107,7 @@ def log_feedback(
 
 
 def get_feedback_stats() -> Dict[str, int]:
+    # The footer only needs lightweight counts, so we aggregate here instead of loading rows.
     _init_feedback_store()
     stats = {"total": 0, "up": 0, "down": 0}
 

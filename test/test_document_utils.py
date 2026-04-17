@@ -1,5 +1,7 @@
 import unittest
 
+"""Covers the upload splitter so different document styles stay consistent."""
+
 from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()

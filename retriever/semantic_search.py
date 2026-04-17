@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Query cleanup and semantic search helpers.
+
+The main trick here is building a few useful query variants so wording
+changes still have a good shot at matching stored memory.
+"""
+
 import re
 from typing import TYPE_CHECKING, List, Sequence
 
@@ -59,6 +65,7 @@ def _build_query_variants(query: str) -> List[str]:
     add_variant(cleaned_query)
     add_variant(_trim_trailing_fillers(cleaned_query))
 
+    # Strip common question openers so "what is my favorite food" can still match "my favorite food is pizza".
     for variant in list(variants):
         lowered_variant = variant.casefold()
         for opener in QUESTION_OPENERS:
@@ -108,6 +115,7 @@ def search_memory(
     query_variants = _build_query_variants(cleaned_query)
     query_vectors = embed_texts(query_variants)
 
+    # We keep the best score per record across all query variants, then sort once at the end.
     for variant, query_vec in zip(query_variants, query_vectors):
         for match in store.search(query_vec, top_k=per_query_top_k):
             existing_match = aggregated_results.get(match.record.id)

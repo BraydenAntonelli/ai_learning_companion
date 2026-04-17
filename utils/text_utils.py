@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Small text helpers shared all over the app."""
+
 from typing import List
 
 
@@ -44,6 +46,7 @@ def chunk_text(text: str, max_chars: int = 500) -> List[str]:
 
     for word in cleaned.split(" "):
         if len(word) > max_chars:
+            # If one token is absurdly long, just slice it so the rest of the pipeline can keep moving.
             if current_words:
                 chunks.append(" ".join(current_words))
                 current_words = []

@@ -2,6 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+"""Persistence-focused checks for the SQLite + FAISS store."""
+
 from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()

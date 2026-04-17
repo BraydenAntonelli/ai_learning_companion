@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""SQLite + FAISS memory store.
+
+SQLite keeps the structured records. FAISS keeps the fast semantic lookup.
+That split is the whole point of this module.
+"""
+
 from contextlib import contextmanager
 import json
 import sqlite3
@@ -67,6 +73,7 @@ class VectorStore:
         self._records = []
 
     def _connect(self) -> sqlite3.Connection:
+        # SQLite is just for metadata here. The actual vector search still lives in FAISS.
         connection = sqlite3.connect(str(self.metadata_path))
         connection.row_factory = sqlite3.Row
         return connection
@@ -227,6 +234,7 @@ class VectorStore:
                 tags=tags,
             )
 
+        # Updates reuse the same record id and timestamps where that still makes sense.
         existing_record.text = cleaned_text
         existing_record.category = category
         existing_record.source = draft.source
@@ -258,6 +266,7 @@ class VectorStore:
         return [self._coerce_vector(self.embed_fn(text)) for text in texts]
 
     def _rebuild_index_from_records(self, records: List[MemoryRecord]) -> None:
+        # Edits and deletes are rare, so rebuilding keeps the implementation straightforward.
         new_index = self._new_index()
         if records:
             matrix = np.vstack(self._embed_many([record.text for record in records]))
@@ -376,6 +385,7 @@ class VectorStore:
         if not drafts:
             return 0, 0
 
+        # Duplicate checks happen before embedding so we do not waste extra work.
         seen = {record.text.casefold() for record in self._records}
         new_records: List[MemoryRecord] = []
         duplicates = 0
@@ -503,6 +513,7 @@ class VectorStore:
         return list(self._records)
 
     def _save(self) -> None:
+        # Full saves are mostly for rebuild-style operations.
         self._replace_all_records_in_db(self._records)
         self._write_index()
 

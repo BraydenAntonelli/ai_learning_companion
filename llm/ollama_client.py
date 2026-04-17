@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Tiny Ollama client for grounded local answers.
+
+The goal here is not to be a full SDK. It just checks local status,
+builds a grounded prompt, and rejects obviously bad meta-style answers.
+"""
+
 import json
 import os
 import re
@@ -95,6 +101,7 @@ def _extract_error_message(exc: Exception) -> str:
 
 
 def get_ollama_status(config: LocalLLMConfig) -> LocalLLMStatus:
+    # A quick health check keeps the UI from pretending local generation is ready when it is not.
     base_url = config.normalized_base_url
 
     try:
@@ -157,6 +164,7 @@ def _build_grounding_messages(
     results: List[RetrievedMemory],
     retrieval_response: Dict[str, object],
 ) -> List[Dict[str, str]]:
+    # We only send a few top memories so the prompt stays tight and grounded.
     memories: List[str] = []
     for index, match in enumerate(results[:3], start=1):
         memories.append(
@@ -206,6 +214,7 @@ def _build_grounding_messages(
 
 
 def _looks_like_meta_answer(answer: str) -> bool:
+    # If the model starts talking about confidence or retrieval mechanics, we treat that as a bad answer.
     lowered = answer.casefold()
     if any(marker in lowered for marker in META_ANSWER_MARKERS):
         return True
@@ -270,6 +279,7 @@ def generate_grounded_answer(
             error="The local model returned an empty answer.",
         )
 
+    # Aila should sound natural, not like a debug console, so we filter that stuff out here.
     if _looks_like_meta_answer(cleaned_answer):
         return LocalLLMResult(
             used=False,

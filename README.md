@@ -261,35 +261,3 @@ ai_learning_companion/
 |-- requirements.txt
 `-- README.md
 ```
-
-The repo folder name is still `ai_learning_companion`, even though the app itself is branded as `AI Learning Aid`.
-
-## Optimization Notes
-
-- embeddings are normalized for stable cosine retrieval
-- batch embedding is used for ingestion and rebuild operations
-- the embedding model is lazy-loaded
-- retrieval uses confidence and ambiguity checks, not just top-1 matching
-- the local LLM path degrades cleanly instead of forcing generation
-- memory and feedback are now persisted in SQLite instead of flat files
-- upload ingestion now uses line-, list-, and sentence-aware splitting before size fallback
-
-## Troubleshooting
-
-- If `streamlit` is not recognized, run `python -m streamlit run app.py`.
-- If PDF upload fails, make sure `pypdf` installed correctly from `requirements.txt`.
-- If retrieval feels too strict, lower the similarity or score-gap thresholds in `Settings`.
-- If local LLM mode is selected, make sure Ollama is running on `http://localhost:11434`.
-- If Ollama answers slowly the first time, that is usually just model load time.
-- If retrieval feels inconsistent after upgrades, use `Rebuild Embeddings` in `Settings`.
-- If `python` on Windows points to the Microsoft Store shim, activate a real virtual environment first and use that interpreter.
-
-## Resume / Portfolio Description
-
-Short version:
-
-`A local semantic-memory app that uses embeddings, FAISS, SQLite, and grounded retrieval logic to store, retrieve, and review user-provided knowledge, with an optional free local LLM answer layer through Ollama.`
-
-## License
-
-This project is currently unlicensed. Add a `LICENSE` file before publishing if you want to define reuse terms clearly.

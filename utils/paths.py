@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Central place for repo-local data paths and shared constants."""
+
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent

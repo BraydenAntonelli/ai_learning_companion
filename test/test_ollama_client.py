@@ -2,6 +2,8 @@ import unittest
 from urllib import error
 from unittest.mock import patch
 
+"""Checks the tiny Ollama client without needing a live local model."""
+
 from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()

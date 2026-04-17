@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+"""Keeps the SQLite feedback table honest."""
+
 from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()

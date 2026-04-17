@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Embedding helpers.
+
+This tries the real transformer first, then falls back to a deterministic
+hashing embedder so the app does not completely die on weird local setups.
+"""
+
 import hashlib
 from functools import lru_cache
 from typing import TYPE_CHECKING, List, Sequence
@@ -53,6 +59,7 @@ class _HashingFallbackModel:
 
 
 def _build_hash_features(text: str) -> list[str]:
+    # A couple of simple token features are enough to keep the fallback somewhat usable.
     tokens = text.casefold().split()
     if not tokens:
         return []
@@ -111,6 +118,7 @@ def get_model() -> "SentenceTransformer | _HashingFallbackModel":
         _FALLBACK_REASON = None
         return _load_sentence_transformer_model()
     except Exception as exc:  # pragma: no cover - exercised through fallback test doubles
+        # Fallback is not ideal, but it beats a totally broken app.
         _FALLBACK_REASON = (
             "The local embedding model could not be loaded, so the app switched to "
             "a deterministic fallback embedder for this session."

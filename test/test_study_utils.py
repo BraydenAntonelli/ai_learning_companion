@@ -1,5 +1,7 @@
 import unittest
 
+"""Keeps the lightweight flashcard builder predictable."""
+
 from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()

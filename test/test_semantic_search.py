@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import patch
 
+"""Makes sure query cleanup still gives semantic search a fair shot."""
+
 from support import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()

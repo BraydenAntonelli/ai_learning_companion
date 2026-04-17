@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Tiny test helper for keeping imports sane during unittest runs."""
+
 import sys
 from pathlib import Path
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Simple flashcard helpers for the review tab."""
+
 from dataclasses import dataclass
 
 from memory.models import MemoryRecord
@@ -13,6 +15,7 @@ class Flashcard:
 
 
 def build_flashcard(record: MemoryRecord) -> Flashcard:
+    # This stays intentionally lightweight. We just reshape stored facts into a study prompt.
     text = record.text.rstrip(".")
     lowered = text.casefold()
 

@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Main Streamlit app for Aila.
+
+This file is mostly UI glue: it wires the memory store, retrieval flow,
+optional local LLM flow, and the four main views together.
+"""
+
 import random
 from typing import Any, Dict, Optional
 
@@ -38,6 +44,7 @@ from utils.text_utils import normalize_text, split_tags, truncate_text
 
 @st.cache_resource
 def get_store() -> VectorStore:
+    # Keep one shared store around so reruns do not keep rebuilding everything.
     return VectorStore(
         dim=EMBEDDING_DIM,
         index_path=MEMORY_INDEX_PATH,
@@ -49,6 +56,7 @@ def get_store() -> VectorStore:
 
 @st.cache_data(ttl=5, show_spinner=False)
 def get_cached_ollama_status(model: str, base_url: str, timeout_seconds: float):
+    # Ollama status does not need to be checked on every tiny UI rerun.
     return get_ollama_status(
         LocalLLMConfig(
             enabled=True,
@@ -60,6 +68,7 @@ def get_cached_ollama_status(model: str, base_url: str, timeout_seconds: float):
 
 
 def init_session_state() -> None:
+    # Streamlit reruns a lot, so this is where we keep app memory sane.
     defaults: Dict[str, Any] = {
         "chat_history": [],
         "last_question": None,
@@ -141,6 +150,7 @@ def build_summary_text(record_count: int, source_count: int, feedback_count: int
 
 
 def estimate_chat_spacer_height(message_count: int, has_response: bool) -> float:
+    # This just nudges short chats lower on the page so the layout feels calmer.
     spacer_height = 26.0 - (message_count * 2.8)
     if has_response:
         spacer_height -= 5.0
@@ -148,6 +158,7 @@ def estimate_chat_spacer_height(message_count: int, has_response: bool) -> float
 
 
 def inject_ui_styles() -> None:
+    # Most of the visual personality lives here instead of being scattered around.
     st.markdown(
         """
         <style>
@@ -287,6 +298,7 @@ def inject_ui_styles() -> None:
 
 
 def render_hero() -> None:
+    # A tiny branded header keeps the app feeling intentional without taking over.
     st.markdown(
         """
         <div class="app-title-shell">
@@ -307,6 +319,7 @@ def render_response(response: Dict[str, Any]) -> None:
     elif response.get("rejection_reason") == "low_confidence" and source_record is not None:
         st.info("A related memory was found, but the similarity score was below the current cutoff.")
 
+    # The answer stays clean, and the debugging details stay tucked away here.
     with st.expander("Details"):
         if response.get("answer_mode") == "local_llm" and response.get("llm_model"):
             st.caption(f"Written with local model `{response['llm_model']}`.")
@@ -399,6 +412,7 @@ def handle_chat_message(
     if not cleaned_message:
         return
 
+    # Chat handles both "teach" and "ask", so the first job is just figuring out intent.
     append_chat_message("user", cleaned_message)
     intent = detect_message_intent(cleaned_message)
 
@@ -420,6 +434,7 @@ def handle_chat_message(
         min_similarity=min_similarity,
         min_score_gap=min_score_gap,
     )
+    # The LLM only gets a shot after retrieval says there is something worth grounding on.
     generation = generate_grounded_answer(
         cleaned_message,
         results,
@@ -538,6 +553,7 @@ def render_upload_tab(store: VectorStore) -> None:
         previews: list[str] = []
         failures: list[str] = []
 
+        # Each file gets turned into a plan first so we can report cleanly before saving.
         for uploaded_file in uploaded_files or []:
             try:
                 plan = build_document_ingestion_plan(uploaded_file, chunk_size=chunk_size)
@@ -705,6 +721,7 @@ def render_memory_tab(store: VectorStore) -> None:
 
 
 def render_review_tab(store: VectorStore) -> None:
+    # Review skips raw document chunks so the cards stay closer to clean facts.
     records = [record for record in store.records() if record.category != "document_excerpt"]
     if not records:
         st.info("Add some direct facts first, then come back here to review them.")
@@ -873,6 +890,7 @@ if answer_mode == "local_llm":
         model=llm_model,
         base_url=llm_base_url,
     )
+    # If Ollama is not actually ready, we fall back early instead of letting chat hang.
     llm_status = get_cached_ollama_status(
         llm_config.normalized_model,
         llm_config.normalized_base_url,
