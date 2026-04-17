@@ -1,6 +1,6 @@
 # AI Learning Aid
 
-AI Learning Aid is a local semantic-memory app built around retrieval, persistence, and grounded answering. The assistant inside the app is called `Aila`, based on the initials in the project name.
+AI Learning Aid is a local semantic-memory and grounded LLM app built around retrieval, persistence, and grounded answering. The assistant inside the app is called `Aila`, based on the initials in the project name.
 
 You can:
 
